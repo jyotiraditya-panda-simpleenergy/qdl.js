@@ -38,9 +38,10 @@ export class qdlDevice {
 
   /**
    * @param {usbClass} cdc
+   * @param {object} [cfgOverrides] - Firehose cfg overrides, e.g. { MemoryName: "eMMC", SECTOR_SIZE_IN_BYTES: 512 }
    * @returns {Promise<void>}
    */
-  async connect(cdc) {
+  async connect(cdc, cfgOverrides = {}) {
     if (!cdc.connected) await cdc.connect();
     if (!cdc.connected) throw new Error("Could not connect to device");
     logger.debug("QDL device detected");
@@ -53,7 +54,7 @@ export class qdlDevice {
     if (this.mode !== "firehose") {
       throw new Error(`Unsupported mode: ${this.mode}. Please reboot the device.`);
     }
-    this.#firehose = new Firehose(cdc);
+    this.#firehose = new Firehose(cdc, cfgOverrides);
     if (!await this.firehose.configure()) throw new Error("Could not configure Firehose");
     logger.debug("Firehose configured");
   }

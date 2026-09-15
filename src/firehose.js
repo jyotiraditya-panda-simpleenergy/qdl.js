@@ -49,11 +49,12 @@ class cfg {
 export class Firehose {
   /**
    * @param {usbClass} cdc
+   * @param {Partial<cfg>} [cfgOverrides] - e.g. { MemoryName: "eMMC", SECTOR_SIZE_IN_BYTES: 512 }
    */
-  constructor(cdc) {
+  constructor(cdc, cfgOverrides = {}) {
     this.cdc = cdc;
     this.xml = new xmlParser();
-    this.cfg = new cfg();
+    this.cfg = Object.assign(new cfg(), cfgOverrides);
     /** @type {number[]} */
     this.luns = [];
   }
@@ -131,7 +132,7 @@ export class Firehose {
     if (!log.find((message) => message.includes("Calling handler for configure"))) {
       throw new Error("Failed to configure: handler not called");
     }
-    if (!log.find((message) => message.includes("Storage type set to value UFS"))) {
+    if (!log.find((message) => message.includes(`Storage type set to value ${this.cfg.MemoryName}`))) {
       throw new Error("Failed to configure: storage type not set");
     }
     this.luns = Array.from({ length: this.cfg.maxlun }, (x, i) => i);
@@ -307,6 +308,33 @@ export class Firehose {
       } else {
         throw "Failed to erase no return value";
       }
+    }
+    return true;
+  }
+
+  /**
+   * Applies a single entry from a Qualcomm patch*.xml file (e.g. GPT CRC fixups).
+   * @param {number} physicalPartitionNumber
+   * @param {bigint|number} startSector
+   * @param {number} byteOffset
+   * @param {number} sizeInBytes
+   * @param {string} value
+   * @param {string} [what]
+   * @returns {Promise<boolean>}
+   */
+  async cmdPatch(physicalPartitionNumber, startSector, byteOffset, sizeInBytes, value, what = "") {
+    const rsp = await this.xmlSend(toXml("patch", {
+      SECTOR_SIZE_IN_BYTES: this.cfg.SECTOR_SIZE_IN_BYTES,
+      byte_offset: byteOffset,
+      filename: "DISK",
+      physical_partition_number: physicalPartitionNumber,
+      size_in_bytes: sizeInBytes,
+      start_sector: startSector,
+      value,
+      what,
+    }));
+    if (!rsp.resp) {
+      throw new Error(`Failed to patch: ${rsp.error ?? "negative response"}`);
     }
     return true;
   }

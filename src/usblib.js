@@ -1,6 +1,22 @@
 import * as constants from "./constants";
 import { concatUint8Array } from "./utils";
 
+/**
+ * Shows the browser's device picker. Must be called directly from a user gesture handler (no
+ * `await` before it) - Chrome throws SecurityError otherwise.
+ * @returns {Promise<USBDevice>}
+ */
+export async function requestDevice() {
+  if (!("usb" in navigator)) {
+    throw "USB - WebUSB not supported";
+  }
+  const filters = constants.VENDOR_IDS.map(vendorId => ({
+    vendorId,
+    productId: constants.PRODUCT_ID,
+    classCode: constants.QDL_CLASS_CODE,
+  }));
+  return navigator.usb.requestDevice({ filters });
+}
 
 export class usbClass {
   constructor() {
@@ -71,18 +87,16 @@ export class usbClass {
     }
   }
 
-  async connect() {
-    if (!("usb" in navigator)) {
-      throw "USB - WebUSB not supported";
+  /**
+   * @param {USBDevice} [device] - Pre-selected device (see {@link requestDevice}). If omitted,
+   * this calls requestDevice() itself, which must happen synchronously within a user gesture -
+   * callers doing other async work first (reading files, etc.) should call requestDevice()
+   * themselves first and pass the result here.
+   */
+  async connect(device) {
+    if (!device) {
+      device = await requestDevice();
     }
-
-    const filters = constants.VENDOR_IDS.map(vendorId => ({
-      vendorId,
-      productId: constants.PRODUCT_ID,
-      classCode: constants.QDL_CLASS_CODE,
-    }));
-
-    const device = await navigator.usb.requestDevice({ filters });
     await this.#connectDevice(device);
   }
 
